@@ -12,3 +12,5 @@ python-dotenv==1.0.0
 # Dependências adicionais que podem ser necessárias
 protobuf==3.20.3
 setuptools>=65.5.0
+tensorflow-macos 
+tensorflow-metal

@@ -42,37 +42,80 @@ except Exception as e:
     DATABASE_AVAILABLE = False
     DatabaseManager = None
 
-# Imports do TensorFlow (com tratamento de erro e configuração para macOS)
+# Imports do TensorFlow (otimizado para Mac M1 Max com GPU Metal)
 try:
     import os
-    # Configurações específicas para resolver problemas de mutex/threading no macOS
+    # Configurações otimizadas para Mac M1 Max
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduz logs do TensorFlow
-    os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Desabilita oneDNN que pode causar problemas
-    os.environ['OMP_NUM_THREADS'] = '1'  # Limita threads OpenMP
-    os.environ['TF_NUM_INTEROP_THREADS'] = '1'  # Limita threads de interoperação
-    os.environ['TF_NUM_INTRAOP_THREADS'] = '1'  # Limita threads de operação interna
+    os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Desabilita oneDNN 
+    # Configurações para aproveitar múltiplos cores do M1 Max
+    os.environ['OMP_NUM_THREADS'] = '8'  # Aumentado para aproveitar M1 Max (8 performance cores)
+    os.environ['TF_NUM_INTEROP_THREADS'] = '8'  # Otimizado para M1 Max
+    os.environ['TF_NUM_INTRAOP_THREADS'] = '8'  # Otimizado para M1 Max
     
     import tensorflow as tf
     
-    # Configuração adicional do TensorFlow para macOS
-    tf.config.threading.set_inter_op_parallelism_threads(1)
-    tf.config.threading.set_intra_op_parallelism_threads(1)
+    # Configuração otimizada para M1 Max
+    tf.config.threading.set_inter_op_parallelism_threads(8)
+    tf.config.threading.set_intra_op_parallelism_threads(8)
     
-    # Configurar GPUs se disponíveis (mas limitar problemas de threading)
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        try:
-            for gpu in gpus:
+    # Detecta e configura Metal Performance Shaders (GPU) no Mac M1 Max
+    print("🔍 Detectando dispositivos disponíveis...")
+    
+    # Lista todos os dispositivos físicos
+    physical_devices = tf.config.list_physical_devices()
+    print(f"📱 Dispositivos físicos encontrados: {len(physical_devices)}")
+    for device in physical_devices:
+        print(f"   • {device}")
+    
+    # Configuração específica para GPU Metal (M1 Max)
+    try:
+        # Verifica se Metal Performance Shaders está disponível
+        gpus = tf.config.list_physical_devices('GPU')
+        if gpus:
+            print(f"🚀 GPU Metal detectada: {len(gpus)} dispositivo(s)")
+            for i, gpu in enumerate(gpus):
+                print(f"   GPU {i}: {gpu}")
+                # Habilita crescimento dinâmico de memória para evitar erros
                 tf.config.experimental.set_memory_growth(gpu, True)
-        except RuntimeError as e:
-            print(f"Aviso: Não foi possível configurar GPU: {e}")
+                # Define GPU como preferencial para operações
+                tf.config.set_visible_devices(gpu, 'GPU')
+            
+            # Testa se a GPU está funcionando
+            with tf.device('/GPU:0'):
+                test_tensor = tf.constant([[1.0, 2.0], [3.0, 4.0]])
+                result = tf.reduce_sum(test_tensor)
+                print(f"✅ Teste GPU bem-sucedido: {result.numpy()}")
+                
+            print("🎯 TensorFlow configurado para usar GPU Metal (M1 Max)")
+            GPU_AVAILABLE = True
+            
+        else:
+            print("⚠️ GPU Metal não detectada, usando CPU otimizada")
+            # Otimiza CPU para M1 Max
+            tf.config.set_soft_device_placement(True)
+            GPU_AVAILABLE = False
+            
+    except Exception as gpu_error:
+        print(f"⚠️ Erro na configuração GPU: {gpu_error}")
+        print("🔄 Continuando com CPU otimizada para M1 Max")
+        GPU_AVAILABLE = False
     
     from tensorflow.keras.models import Sequential
     from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
     from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
     from tensorflow.keras.optimizers import Adam
     TENSORFLOW_AVAILABLE = True
-    print("✅ TensorFlow carregado com configurações otimizadas para macOS")
+    
+    if GPU_AVAILABLE:
+        print("✅ TensorFlow carregado com GPU Metal (M1 Max) - MÁXIMA PERFORMANCE")
+    else:
+        print("✅ TensorFlow carregado com CPU otimizada (M1 Max)")
+        
+except ImportError as e:
+    print(f"TensorFlow não disponível: {e}. Apenas Random Forest será usado.")
+    TENSORFLOW_AVAILABLE = False
+    GPU_AVAILABLE = False
 except ImportError as e:
     print(f"TensorFlow não disponível: {e}. Apenas Random Forest será usado.")
     TENSORFLOW_AVAILABLE = False
@@ -227,13 +270,177 @@ def create_sequences_advanced(data, target_col_idx, seq_length):
     
     return np.array(X), np.array(y)
 
-def train_advanced_lstm(X_train, y_train, X_test, y_test, config):
+def train_advanced_lstm_m1_max(X_train, y_train, X_test, y_test, config):
     """
-    Treina modelo LSTM com arquitetura avançada
+    Treina modelo LSTM otimizado para Mac M1 Max com GPU Metal
     """
     if not TENSORFLOW_AVAILABLE:
         print("TensorFlow não disponível, pulando LSTM...")
         return None, None
+    
+    print("🚀 Construindo modelo LSTM otimizado para M1 Max...")
+    
+    # Força uso da GPU se disponível
+    device_name = "/GPU:0" if GPU_AVAILABLE else "/CPU:0"
+    print(f"🎯 Usando dispositivo: {device_name}")
+    
+    # Habilita precisão mista se configurado
+    if config.get('use_mixed_precision', False) and GPU_AVAILABLE:
+        try:
+            from tensorflow.keras import mixed_precision
+            policy = mixed_precision.Policy('mixed_float16')
+            mixed_precision.set_global_policy(policy)
+            print("✅ Precisão mista habilitada (mixed_float16)")
+        except Exception as e:
+            print(f"⚠️ Não foi possível habilitar precisão mista: {e}")
+    
+    # Constrói modelo dentro do contexto do dispositivo
+    with tf.device(device_name):
+        model = Sequential()
+        
+        # Primeira camada LSTM otimizada
+        model.add(LSTM(
+            config['layers'][0], 
+            return_sequences=len(config['layers']) > 1,
+            input_shape=(X_train.shape[1], X_train.shape[2]),
+            # Otimizações para Metal
+            activation='tanh',  # Otimizado para Metal
+            recurrent_activation='sigmoid',
+            dropout=0.0,  # Dropout manual para melhor controle
+            recurrent_dropout=0.0,
+            implementation=2  # Implementação otimizada
+        ))
+        model.add(Dropout(config['dropout_rates'][0]))
+        
+        # Camadas LSTM intermediárias
+        for i in range(1, len(config['layers'])):
+            return_seq = i < len(config['layers']) - 1
+            model.add(LSTM(
+                config['layers'][i], 
+                return_sequences=return_seq,
+                activation='tanh',
+                recurrent_activation='sigmoid',
+                dropout=0.0,
+                recurrent_dropout=0.0,
+                implementation=2
+            ))
+            model.add(Dropout(config['dropout_rates'][i]))
+        
+        # Camadas densas otimizadas
+        for j, dense_size in enumerate(config['dense_layers']):
+            model.add(Dense(
+                dense_size, 
+                activation='relu',
+                kernel_initializer='he_normal'  # Melhor para ReLU
+            ))
+            model.add(Dropout(0.2))
+        
+        # Camada de saída
+        if config.get('use_mixed_precision', False):
+            # Para precisão mista, usa float32 na saída
+            model.add(Dense(1, dtype='float32'))
+        else:
+            model.add(Dense(1))
+    
+    print(f"🏗️ Modelo construído com {model.count_params():,} parâmetros")
+    
+    # Compilação otimizada para M1 Max
+    with tf.device(device_name):
+        optimizer = Adam(
+            learning_rate=config['learning_rate'],
+            clipnorm=config.get('clipnorm', 1.0),
+            # Otimizações específicas para Metal
+            amsgrad=False,  # Desabilita AMSGrad para velocidade
+        )
+        
+        # Loss function otimizada
+        loss_function = config.get('loss_function', 'mse')
+        if config.get('use_mixed_precision', False):
+            # Para precisão mista, usa loss scaling
+            optimizer = mixed_precision.LossScaleOptimizer(optimizer)
+        
+        model.compile(
+            optimizer=optimizer, 
+            loss=loss_function, 
+            metrics=['mae']
+        )
+    
+    print("🎯 Modelo compilado para M1 Max")
+    print("📊 Arquitetura do modelo:")
+    model.summary()
+    
+    # Callbacks otimizados para M1 Max
+    callbacks = [
+        EarlyStopping(
+            monitor='val_loss',
+            patience=config['patience_early_stop'],
+            restore_best_weights=True,
+            verbose=1
+        ),
+        ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=config['reduce_lr_factor'],
+            patience=config['patience_reduce_lr'],
+            min_lr=config['min_lr'],
+            verbose=1
+        )
+    ]
+    
+    # Adiciona ModelCheckpoint se especificado
+    if config.get('save_best_model', True):
+        callbacks.append(ModelCheckpoint(
+            'models/best_lstm_m1_max.h5',
+            monitor='val_loss',
+            save_best_only=True,
+            verbose=1
+        ))
+    
+    print(f"🚀 Iniciando treinamento M1 Max:")
+    print(f"   • Épocas: {config['epochs']}")
+    print(f"   • Batch Size: {config['batch_size']}")
+    print(f"   • Dispositivo: {device_name}")
+    print(f"   • Precisão Mista: {config.get('use_mixed_precision', False)}")
+    
+    # Treinamento otimizado
+    try:
+        with tf.device(device_name):
+            history = model.fit(
+                X_train, y_train,
+                epochs=config['epochs'],
+                batch_size=config['batch_size'],
+                validation_data=(X_test, y_test),
+                callbacks=callbacks,
+                verbose=1,
+                # Otimizações para M1 Max
+                use_multiprocessing=True,
+                workers=4,  # Aproveita cores do M1 Max
+                max_queue_size=20  # Buffer maior para GPU
+            )
+        
+        print(f"✅ Treinamento M1 Max concluído em {len(history.history['loss'])} épocas")
+        print(f"📈 Loss final: {history.history['loss'][-1]:.6f}")
+        print(f"📉 Val Loss final: {history.history['val_loss'][-1]:.6f}")
+        
+        return model, history
+        
+    except Exception as e:
+        print(f"❌ Erro no treinamento M1 Max: {e}")
+        print("🔄 Tentando fallback para CPU...")
+        
+        # Fallback para CPU
+        return train_advanced_lstm(X_train, y_train, X_test, y_test, config)
+
+def train_advanced_lstm(X_train, y_train, X_test, y_test, config):
+    """
+    Treina modelo LSTM com arquitetura avançada (versão original mantida)
+    """
+    if not TENSORFLOW_AVAILABLE:
+        print("TensorFlow não disponível, pulando LSTM...")
+        return None, None
+    
+    # Se M1 Max detectado e GPU disponível, usa versão otimizada
+    if GPU_AVAILABLE and hasattr(config, 'get') and config.get('force_gpu', False):
+        return train_advanced_lstm_m1_max(X_train, y_train, X_test, y_test, config)
     
     print("Construindo modelo LSTM avançado...")
     
