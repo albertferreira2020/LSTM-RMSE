@@ -1,28 +1,80 @@
-# Previsão de Valor de Close com LSTM e Random Forest
+# Previsão de Valor com LSTM - Versão Simplificada
 
-Este projeto utiliza redes neurais LSTM (TensorFlow/Keras) e Random Forest
-(Scikit-learn) para prever o valor de **close** do próximo bloco, com base em
-dados históricos (blocos Renko).
+Este projeto utiliza redes neurais LSTM (TensorFlow/Keras) para prever valores
+baseado em dados históricos.
 
-## **Configuração do Banco PostgreSQL (Nova Funcionalidade)**
+## **Estrutura do Projeto**
 
-### **1. Configuração das Credenciais**
+```
+├── main_advanced.py           # Arquivo principal do projeto
+├── config.py                  # Configurações do modelo LSTM
+├── technical_indicators.py    # Indicadores técnicos
+├── database.py               # Gerenciador de conexão PostgreSQL
+├── test_database.py          # Teste de conexão com banco
+├── test_tensorflow_fix.py    # Teste do TensorFlow
+├── requirements-stable.txt   # Dependências estáveis
+├── best_lstm_model.h5       # Modelo LSTM pré-treinado
+├── relatorio_mensal_geral_2025-03 (1).csv  # Dados de exemplo
+└── .env                     # Configurações de ambiente
+```
 
-1. Copie o arquivo de exemplo:
+## **Instalação e Uso**
 
-   ```bash
-   cp .env.example .env
-   ```
+### **1. Instalar Dependências**
 
-2. Edite o arquivo `.env` com suas credenciais:
-   ```bash
-   # Exemplo de configuração
-   DB_HOST=localhost
-   DB_PORT=5432
-   DB_NAME=seu_banco
-   DB_USER=seu_usuario
-   DB_PASSWORD=sua_senha
-   ```
+```bash
+pip install -r requirements-stable.txt
+```
+
+### **2. Configurar Ambiente (Opcional - para banco PostgreSQL)**
+
+Se você quiser usar PostgreSQL, configure o arquivo `.env`:
+
+```bash
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=seu_banco
+DB_USER=seu_usuario
+DB_PASSWORD=sua_senha
+```
+
+### **3. Executar o Projeto**
+
+```bash
+python main_advanced.py
+```
+
+## **Arquivos de Teste**
+
+- `test_database.py` - Testa a conexão com PostgreSQL
+- `test_tensorflow_fix.py` - Verifica se o TensorFlow está funcionando
+  corretamente
+
+## **Funcionalidades**
+
+- **LSTM Avançado**: Rede neural com múltiplas camadas e regularização
+- **Indicadores Técnicos**: RSI, MACD, Bollinger Bands, etc.
+- **Conexão PostgreSQL**: Suporte opcional para banco de dados
+- **Visualizações**: Gráficos de treino, validação e predições
+- **Modelos Salvos**: Carregamento automático de modelos pré-treinados
+
+## **Dependências Principais**
+
+- TensorFlow 2.15.0
+- Pandas 1.5.3
+- NumPy 1.24.3
+- Scikit-learn 1.3.0
+- Matplotlib 3.7.1
+
+## **Notas**
+
+- O projeto foi simplificado para manter apenas os arquivos essenciais
+- Use `main_advanced.py` como ponto de entrada principal
+- Configure o arquivo `.env` apenas se usar PostgreSQL DB_NAME=seu_banco
+  DB_USER=seu_usuario DB_PASSWORD=sua_senha
+  ```
+
+  ```
 
 ### **2. Teste a Conexão**
 
