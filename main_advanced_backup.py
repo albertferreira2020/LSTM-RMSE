@@ -1,4 +1,4 @@
-# main_advanced.py - Versão avançada com conexão PostgreSQL e logs melhorados
+# main_advanced.py - Versão avançada com conexão PostgreSQL
 
 import pandas as pd
 import numpy as np
@@ -13,7 +13,9 @@ warnings.filterwarnings('ignore')
 from config import *
 from technical_indicators import add_technical_indicators, add_lagged_features, add_rolling_statistics
 
-# Função utilitária para monitoramento
+# Importação do DatabaseManager com tratamento de erro
+try:
+    from database import# Função utilitária para monitoramento
 def show_system_stats():
     """
     Mostra estatísticas básicas do sistema durante processamento
@@ -28,10 +30,7 @@ def show_system_stats():
     print(f"   🐍 PID do processo: {os.getpid()}")
     print(f"   📊 Status: Processando...")
 
-# Importação do DatabaseManager com tratamento de erro
-try:
-    from database import DatabaseManager
-    DATABASE_AVAILABLE = True
+# ...existing code...  DATABASE_AVAILABLE = True
     print("✅ DatabaseManager carregado com sucesso")
 except ImportError as e:
     print(f"⚠️ DatabaseManager não disponível: {e}")
@@ -313,7 +312,7 @@ def train_advanced_lstm(X_train, y_train, X_test, y_test, config):
 
 def train_ensemble_models(X_train, y_train, quick_mode=False):
     """
-    Treina múltiplos modelos para ensemble com logs detalhados
+    Treina múltiplos modelos para ensemble
     """
     import time
     import threading
@@ -377,17 +376,32 @@ def train_ensemble_models(X_train, y_train, quick_mode=False):
     
     print("🚀 Iniciando busca de hiperparâmetros...")
     
-    # Monitor de progresso para RF
+    # Cria uma função de callback para mostrar progresso
+    class ProgressCallback:
+        def __init__(self):
+            self.start_time = time.time()
+            self.last_update = time.time()
+        
+        def __call__(self, *args):
+            current_time = time.time()
+            if current_time - self.last_update > 30:  # Atualiza a cada 30 segundos
+                elapsed = current_time - self.start_time
+                print(f"   ⏱️  Processando há {elapsed:.0f}s ({elapsed/60:.1f} min)... ainda trabalhando...")
+                self.last_update = current_time
+    
+    progress_callback = ProgressCallback()
+    
+    # Inicia um timer para mostrar progresso periodicamente
+    import threading
+    import sys
+    
     def progress_monitor():
         start = time.time()
-        counter = 0
         while not hasattr(progress_monitor, 'stop'):
             time.sleep(45)  # Aguarda 45 segundos
             if not hasattr(progress_monitor, 'stop'):
-                counter += 1
                 elapsed = time.time() - start
-                print(f"   🔄 Random Forest ainda processando... {elapsed:.0f}s ({elapsed/60:.1f} min) - Update #{counter}")
-                show_system_stats()
+                print(f"   🔄 Random Forest ainda processando... {elapsed:.0f}s ({elapsed/60:.1f} min)")
                 sys.stdout.flush()
     
     # Inicia monitor em thread separada
@@ -411,7 +425,7 @@ def train_ensemble_models(X_train, y_train, quick_mode=False):
     models['rf'] = rf_search.best_estimator_
     
     # Gradient Boosting
-    print(f"\n🚀 === INICIANDO TREINAMENTO GRADIENT BOOSTING ===")
+    print("\n🚀 === INICIANDO TREINAMENTO GRADIENT BOOSTING ===")
     print(f"⏰ Início: {datetime.now().strftime('%H:%M:%S')}")
     
     gb_param_dist = {
@@ -426,7 +440,7 @@ def train_ensemble_models(X_train, y_train, quick_mode=False):
     for param, values in gb_param_dist.items():
         print(f"   {param}: {values}")
     
-    gb_total_combinations = gb_iterations * gb_cv_folds
+    gb_total_combinations = gb_iterations * gb_cv_folds  # n_iter * cv_folds
     print(f"🔍 Testando {gb_iterations} combinações com {gb_cv_folds} folds")
     print(f"📈 Total de fits: {gb_total_combinations}")
     gb_estimated_time = gb_total_combinations * 3  # Estimativa de 3 segundos por fit
@@ -450,14 +464,11 @@ def train_ensemble_models(X_train, y_train, quick_mode=False):
     # Monitor de progresso para GB
     def progress_monitor_gb():
         start = time.time()
-        counter = 0
         while not hasattr(progress_monitor_gb, 'stop'):
             time.sleep(30)  # Aguarda 30 segundos
             if not hasattr(progress_monitor_gb, 'stop'):
-                counter += 1
                 elapsed = time.time() - start
-                print(f"   🔄 Gradient Boosting ainda processando... {elapsed:.0f}s ({elapsed/60:.1f} min) - Update #{counter}")
-                show_system_stats()
+                print(f"   🔄 Gradient Boosting ainda processando... {elapsed:.0f}s ({elapsed/60:.1f} min)")
                 sys.stdout.flush()
     
     # Inicia monitor em thread separada
@@ -573,174 +584,28 @@ def plot_comprehensive_results(y_test, predictions_dict, history=None):
     plt.tight_layout()
     plt.show()
 
-def save_all_models(lstm_model, ensemble_models, scaler, feature_columns, model_dir='models'):
+# Função utilitária para monitoramento
+def show_system_stats():
     """
-    Salva todos os modelos treinados e metadados necessários
+    Mostra estatísticas do sistema durante processamento
     """
+    import psutil
     import os
-    import joblib
-    import json
-    from datetime import datetime
     
-    # Cria diretório se não existir
-    os.makedirs(model_dir, exist_ok=True)
+    # Informações de CPU e memória
+    cpu_percent = psutil.cpu_percent(interval=1)
+    memory = psutil.virtual_memory()
     
-    print(f"\n💾 === SALVANDO MODELOS ===")
-    print(f"📁 Diretório: {model_dir}")
-    saved_files = []
+    print(f"   💻 CPU: {cpu_percent:.1f}% | RAM: {memory.percent:.1f}% ({memory.used/1024**3:.1f}GB/{memory.total/1024**3:.1f}GB)")
     
-    try:
-        # 1. Salva o scaler (ESSENCIAL para desnormalização)
-        scaler_path = os.path.join(model_dir, 'scaler.pkl')
-        joblib.dump(scaler, scaler_path)
-        saved_files.append(scaler_path)
-        print(f"✅ Scaler salvo: {scaler_path}")
-        
-        # 2. Salva modelos ensemble (Random Forest e Gradient Boosting)
-        for name, model in ensemble_models.items():
-            model_path = os.path.join(model_dir, f'{name}_model.pkl')
-            joblib.dump(model, model_path)
-            saved_files.append(model_path)
-            print(f"✅ {name.upper()} salvo: {model_path}")
-        
-        # 3. Modelo LSTM já é salvo automaticamente pelo ModelCheckpoint
-        lstm_path = os.path.join(model_dir, 'best_lstm_model.h5')
-        if os.path.exists(lstm_path):
-            saved_files.append(lstm_path)
-            print(f"✅ LSTM já salvo: {lstm_path}")
-        elif lstm_model is not None:
-            # Salva manualmente se não foi salvo pelo callback
-            lstm_model.save(lstm_path)
-            saved_files.append(lstm_path)
-            print(f"✅ LSTM salvo manualmente: {lstm_path}")
-        
-        # 4. Salva metadados importantes
-        metadata = {
-            'timestamp': datetime.now().isoformat(),
-            'feature_columns': feature_columns,
-            'seq_length': SEQ_LENGTH,
-            'test_size': TEST_SIZE,
-            'models_available': list(ensemble_models.keys()) + (['lstm'] if lstm_model else []),
-            'total_features': len(feature_columns),
-            'target_column': 'close'
-        }
-        
-        metadata_path = os.path.join(model_dir, 'model_metadata.json')
-        with open(metadata_path, 'w') as f:
-            json.dump(metadata, f, indent=2)
-        saved_files.append(metadata_path)
-        print(f"✅ Metadados salvos: {metadata_path}")
-        
-        # 5. Cria script de carregamento
-        loading_script = f"""# Script para carregar os modelos salvos
-import joblib
-import json
-import numpy as np
-from tensorflow.keras.models import load_model
-
-# Carrega metadados
-with open('{metadata_path}', 'r') as f:
-    metadata = json.load(f)
-
-# Carrega scaler
-scaler = joblib.load('{scaler_path}')
-
-# Carrega modelos ensemble
-ensemble_models = {{}}
-"""
-        
-        for name in ensemble_models.keys():
-            loading_script += f"ensemble_models['{name}'] = joblib.load('{model_dir}/{name}_model.pkl')\n"
-        
-        if lstm_model:
-            loading_script += f"""
-# Carrega modelo LSTM
-lstm_model = load_model('{lstm_path}')
-
-print("✅ Todos os modelos carregados com sucesso!")
-print(f"Features disponíveis: {{len(metadata['feature_columns'])}}")
-print(f"Modelos carregados: {{metadata['models_available']}}")
-"""
-        
-        script_path = os.path.join(model_dir, 'load_models.py')
-        with open(script_path, 'w') as f:
-            f.write(loading_script)
-        saved_files.append(script_path)
-        print(f"✅ Script de carregamento criado: {script_path}")
-        
-        print(f"\n🎉 Salvamento concluído!")
-        print(f"📊 Total de arquivos salvos: {len(saved_files)}")
-        
-        # Calcula tamanho total
-        total_size = 0
-        for file_path in saved_files:
-            if os.path.exists(file_path):
-                size = os.path.getsize(file_path)
-                total_size += size
-                print(f"   📄 {os.path.basename(file_path)}: {size/1024/1024:.2f} MB")
-        
-        print(f"💽 Tamanho total: {total_size/1024/1024:.2f} MB")
-        
-        return saved_files
-        
-    except Exception as e:
-        print(f"❌ Erro ao salvar modelos: {e}")
-        return []
-
-# Função para carregar modelos salvos
-def load_saved_models(model_dir='models'):
-    """
-    Carrega todos os modelos salvos
-    """
-    import os
-    import joblib
-    import json
-    
-    try:
-        # Carrega metadados
-        metadata_path = os.path.join(model_dir, 'model_metadata.json')
-        with open(metadata_path, 'r') as f:
-            metadata = json.load(f)
-        
-        # Carrega scaler
-        scaler_path = os.path.join(model_dir, 'scaler.pkl')
-        scaler = joblib.load(scaler_path)
-        
-        # Carrega modelos ensemble
-        ensemble_models = {}
-        for name in ['rf', 'gb']:
-            model_path = os.path.join(model_dir, f'{name}_model.pkl')
-            if os.path.exists(model_path):
-                ensemble_models[name] = joblib.load(model_path)
-        
-        # Carrega LSTM se disponível
-        lstm_model = None
-        lstm_path = os.path.join(model_dir, 'best_lstm_model.h5')
-        if os.path.exists(lstm_path):
-            try:
-                from tensorflow.keras.models import load_model
-                lstm_model = load_model(lstm_path)
-            except:
-                print("⚠️ TensorFlow não disponível, LSTM não carregado")
-        
-        print(f"✅ Modelos carregados de {model_dir}")
-        print(f"📊 Features: {len(metadata['feature_columns'])}")
-        print(f"🤖 Modelos: {metadata['models_available']}")
-        
-        return {
-            'metadata': metadata,
-            'scaler': scaler,
-            'ensemble_models': ensemble_models,
-            'lstm_model': lstm_model
-        }
-        
-    except Exception as e:
-        print(f"❌ Erro ao carregar modelos: {e}")
-        return None
+    # Informações do processo atual
+    process = psutil.Process(os.getpid())
+    process_memory = process.memory_info()
+    print(f"   🐍 Processo Python: {process_memory.rss/1024**2:.0f}MB RAM")
 
 def main():
     """
-    Função principal - Versão com PostgreSQL e logs melhorados
+    Função principal - Versão com PostgreSQL
     """
     import time
     from datetime import datetime
@@ -924,132 +789,16 @@ def main():
         ensemble_next = np.mean(list(next_predictions.values()))
         print(f"ENSEMBLE: {ensemble_next:.2f}")
     
-    # Salva todos os modelos
-    print("\n=== SALVANDO MODELOS ===")
-    lstm_model_to_save = lstm_model if TENSORFLOW_AVAILABLE and 'lstm_model' in locals() else None
-    saved_files = save_all_models(
-        lstm_model=lstm_model_to_save,
-        ensemble_models=ensemble_models,
-        scaler=scaler,
-        feature_columns=feature_columns
-    )
-    
-    if saved_files:
-        print(f"🎯 Modelos salvos com sucesso em: models/")
-        print("📖 Para usar os modelos salvos:")
-        print("   1. Execute: from main_advanced import load_saved_models")
-        print("   2. models = load_saved_models()")
-        print("   3. Ou execute o script: python models/load_models.py")
-    
     # Plots
     print("\n=== GERANDO GRÁFICOS ===")
     plot_comprehensive_results(y_test_rescaled.reshape(-1, 1), predictions, history)
     
     print("\n=== ANÁLISE CONCLUÍDA ===")
-    print(f"🕐 Fim da execução: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     print(f"Fonte dos dados: {'PostgreSQL' if use_database else 'CSV'}")
     print(f"Total de features utilizadas: {len(feature_columns)}")
     print(f"Modelos treinados: {list(predictions.keys())}")
-    print(f"📁 Modelos salvos em: models/ ({len(saved_files)} arquivos)")
     
     return results_df, predictions, next_predictions
-
-# Função para fazer previsões usando modelos salvos
-def predict_with_saved_models(new_data, model_dir='models', target_column='close'):
-    """
-    Faz previsões usando modelos salvos
-    
-    Args:
-        new_data: DataFrame com os mesmos indicadores técnicos do treinamento
-        model_dir: Diretório onde estão os modelos salvos
-        target_column: Nome da coluna target
-    
-    Returns:
-        dict: Previsões de cada modelo
-    """
-    import os
-    
-    # Carrega modelos
-    loaded = load_saved_models(model_dir)
-    if loaded is None:
-        print("❌ Não foi possível carregar os modelos")
-        return None
-    
-    metadata = loaded['metadata']
-    scaler = loaded['scaler']
-    ensemble_models = loaded['ensemble_models']
-    lstm_model = loaded['lstm_model']
-    
-    print(f"🔮 === FAZENDO PREVISÕES COM MODELOS SALVOS ===")
-    print(f"📊 Dados de entrada: {new_data.shape}")
-    
-    try:
-        # Prepara os dados
-        feature_columns = metadata['feature_columns']
-        seq_length = metadata['seq_length']
-        
-        # Verifica se todas as features estão presentes
-        missing_features = [col for col in feature_columns if col not in new_data.columns]
-        if missing_features:
-            print(f"⚠️ Features faltando: {missing_features[:5]}...")
-            print("Adicionando indicadores técnicos...")
-            # Adiciona indicadores técnicos se necessário
-            new_data = add_technical_indicators(new_data, feature_columns)
-            new_data = add_lagged_features(new_data, ['close', 'open', 'high', 'low'], lags=[1, 2, 3, 5])
-            new_data = add_rolling_statistics(new_data, ['close'], windows=[5, 10, 20])
-        
-        # Seleciona apenas as features do modelo
-        data_features = new_data[feature_columns].values
-        
-        # Normaliza
-        data_scaled = scaler.transform(data_features)
-        
-        predictions = {}
-        
-        # Previsões com modelos ensemble
-        if len(ensemble_models) > 0:
-            # Para modelos tradicionais, usa apenas o último ponto
-            if len(data_scaled) >= seq_length:
-                last_sequence = data_scaled[-seq_length:].reshape(1, -1)
-                target_idx = feature_columns.index(target_column)
-                
-                for name, model in ensemble_models.items():
-                    pred = model.predict(last_sequence)[0]
-                    
-                    # Desnormaliza
-                    pred_full = np.zeros((1, len(feature_columns)))
-                    pred_full[0, target_idx] = pred
-                    pred_rescaled = scaler.inverse_transform(pred_full)[0, target_idx]
-                    
-                    predictions[name.upper()] = pred_rescaled
-                    print(f"🎯 {name.upper()}: {pred_rescaled:.2f}")
-        
-        # Previsão com LSTM
-        if lstm_model is not None and len(data_scaled) >= seq_length:
-            lstm_sequence = data_scaled[-seq_length:].reshape(1, seq_length, -1)
-            lstm_pred = lstm_model.predict(lstm_sequence, verbose=0)[0, 0]
-            
-            # Desnormaliza
-            target_idx = feature_columns.index(target_column)
-            lstm_pred_full = np.zeros((1, len(feature_columns)))
-            lstm_pred_full[0, target_idx] = lstm_pred
-            lstm_pred_rescaled = scaler.inverse_transform(lstm_pred_full)[0, target_idx]
-            
-            predictions['LSTM'] = lstm_pred_rescaled
-            print(f"🧠 LSTM: {lstm_pred_rescaled:.2f}")
-        
-        # Ensemble final
-        if len(predictions) > 1:
-            ensemble_pred = np.mean(list(predictions.values()))
-            predictions['ENSEMBLE'] = ensemble_pred
-            print(f"🎯 ENSEMBLE: {ensemble_pred:.2f}")
-        
-        print(f"✅ Previsões concluídas!")
-        return predictions
-        
-    except Exception as e:
-        print(f"❌ Erro ao fazer previsões: {e}")
-        return None
 
 if __name__ == "__main__":
     main()

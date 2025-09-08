@@ -26,10 +26,26 @@ dados históricos (blocos Renko).
 
 ### **2. Teste a Conexão**
 
-Antes de executar o sistema principal, teste a conexão:
+Antes de executar o sistema principal, teste a conexão criando um script
+simples:
+
+```python
+# test_connection.py
+from database import DatabaseManager
+
+db = DatabaseManager()
+if db.connect():
+    print("✅ Conexão com PostgreSQL bem-sucedida!")
+    db.get_table_info('botbinance')
+    db.disconnect()
+else:
+    print("❌ Falha na conexão com PostgreSQL")
+```
+
+Execute:
 
 ```bash
-python3 test_database.py
+python test_connection.py
 ```
 
 ### **3. Estrutura da Tabela**
@@ -48,11 +64,21 @@ O sistema espera uma tabela `botbinance` com as colunas:
 
 ### **1. Criação do Ambiente Virtual**
 
+⚠️ **Importante: Este projeto requer Python 3.10 ou superior** devido às
+dependências avançadas de análise técnica.
+
 Para macOS/Linux:
 
 ```bash
-# Criar ambiente virtual
-python3 -m venv env
+# Verificar versão do Python (deve ser 3.10+)
+python3 --version
+python3.11 --version  # Se disponível
+
+# Criar ambiente virtual com Python 3.11 (recomendado)
+python3.11 -m venv env
+
+# Ou com Python 3.10 (mínimo)
+python3.10 -m venv env
 
 # Ativar ambiente virtual
 source env/bin/activate
@@ -61,11 +87,14 @@ source env/bin/activate
 Para Windows:
 
 ```bash
+# Verificar versão do Python (deve ser 3.10+)
+python3 --version
+
 # Criar ambiente virtual
-python -m venv env
+python3 -m venv env
 
 # Ativar ambiente virtual
-env\Scripts\activate
+source env/bin/activate
 ```
 
 ### **2. Instalação das Dependências**
@@ -75,7 +104,11 @@ Com o ambiente virtual ativado, você tem duas opções:
 **Opção 1: Instalação automática (recomendada)**
 
 ```bash
-python setup_env.py
+# Atualizar pip primeiro
+pip install --upgrade pip
+
+# Instalar dependências
+pip install -r requirements.txt
 ```
 
 **Opção 2: Instalação manual**
@@ -108,21 +141,16 @@ conda install tensorflow
 Para verificar se tudo foi instalado corretamente:
 
 ```bash
-# Opção 1: Script de verificação simples (recomendado)
-python3 check_install.py
+# Verificação manual das dependências
+python3 -c "import tensorflow, pandas, numpy, sklearn, matplotlib; print('Todas as bibliotecas foram instaladas com sucesso!')"
 
-# Opção 2: Para zsh (macOS padrão)
-python3 -c "import tensorflow, pandas, numpy, sklearn, matplotlib; print(\"Todas as bibliotecas foram instaladas com sucesso!\")"
-
-# Opção 3: Script de configuração completa
-python3 setup_env.py
-
-# Opção 4: Verificação individual
+# Verificação individual
 python3 -c "import tensorflow; print('TensorFlow OK')"
 python3 -c "import pandas; print('Pandas OK')"
 python3 -c "import numpy; print('NumPy OK')"
 python3 -c "import sklearn; print('Scikit-learn OK')"
 python3 -c "import matplotlib; print('Matplotlib OK')"
+python3 -c "import ta; print('TA (Technical Analysis) OK')"
 ```
 
 ## **Execução**
@@ -181,19 +209,17 @@ perceptronLTSM/
 ├── main.py                                    # Script básico original
 ├── main_advanced.py                           # Script avançado com PostgreSQL
 ├── config.py                                  # Configurações centralizadas
-├── technical_indicators.py                    # Indicadores técnicos avançados
+├── config_deep_training.py                   # Configurações de treino profundo
+├── hyperparameters_optimized.py              # Hiperparâmetros otimizados
+├── technical_indicators.py                   # Indicadores técnicos avançados
 ├── database.py                               # Gerenciador PostgreSQL
-├── test_database.py                          # Teste de conexão com banco
-├── setup_env.py                              # Script de configuração automática
-├── check_install.py                          # Script de verificação simples
 ├── requirements.txt                           # Dependências do projeto
-├── requirements-stable.txt                    # Versões estáveis (backup)
 ├── .env                                      # Credenciais do banco (criar) - NÃO commitado
 ├── .env.example                              # Exemplo de configuração - Commitado
 ├── .gitignore                                # Configuração Git - Commitado
-├── GITIGNORE_EXPLANATION.md                  # Explicação do .gitignore
 ├── README.md                                 # Este arquivo
-├── relatorio_mensal_geral_2025-03 (1).csv   # Dados de entrada (fallback) - NÃO commitado
+├── models/                                   # Modelos treinados (.keras)
+├── relatorio_mensal_geral_2025-03 (1).csv   # Dados de entrada (fallback)
 └── env/                                      # Ambiente virtual - NÃO commitado
 ```
 
@@ -270,16 +296,206 @@ perceptronLTSM/
 - Análise de resíduos
 - Zoom nas últimas previsões
 
-### **Principais Melhorias para Aumentar Precisão:**
+### **Configurações de Treino Profundo e Precisão Máxima**
 
-1. **Sequência Temporal Maior:** Aumentada de 5 para 10 pontos
-2. **Múltiplas Features:** Usa OHLCV + 20+ indicadores técnicos
-3. **Arquitetura Mais Profunda:** 4 camadas LSTM + BatchNorm
-4. **Otimização de Hiperparâmetros:** RandomizedSearchCV
-5. **Ensemble de Modelos:** Combina LSTM + RF + GB
-6. **Callbacks Avançados:** Early stopping, reduce LR, checkpoints
-7. **Loss Function Robusta:** Huber loss (mais resistente a outliers)
-8. **Validação Temporal:** TimeSeriesSplit para séries temporais
+#### **Novos Arquivos de Configuração**
+
+O projeto agora inclui configurações otimizadas para máxima precisão:
+
+1. **`config.py`** - Configurações gerais otimizadas
+2. **`config_deep_training.py`** - Configurações específicas para treino
+   profundo
+3. **`hyperparameters_optimized.py`** - Hiperparâmetros otimizados por pesquisa
+   bibliográfica
+
+#### **Principais Otimizações Implementadas**
+
+##### **🧠 LSTM Profundo**
+
+- **Arquitetura**: 8 camadas com 512→384→256→192→128→96→64→32 neurônios
+- **Bidirectional LSTM**: Captura dependências passadas e futuras
+- **Attention Mechanism**: Foco nas partes importantes da sequência
+- **Regularização**: L1/L2, Dropout progressivo, Batch Normalization
+- **Sequência**: 120 timesteps (4 meses de dados diários)
+- **Treino**: 1000 épocas com early stopping inteligente
+
+##### **🌲 Random Forest Otimizado**
+
+- **Estimadores**: 2000 árvores para máxima estabilidade
+- **Profundidade**: 35 níveis para capturar complexidade
+- **Features**: 80% das features por árvore
+- **Amostragem**: 90% das amostras por árvore
+
+##### **🚀 Gradient Boosting Avançado**
+
+- **Estimadores**: 1500 com learning rate 0.01
+- **Profundidade**: 12 níveis com regularização
+- **Loss Function**: Huber loss (robusto a outliers)
+- **Early Stopping**: 30 iterações de paciência
+
+##### **⚡ XGBoost Otimizado**
+
+- **Estimadores**: 1500 com regularização L1/L2
+- **Tree Method**: Histogram para velocidade
+- **Subsampling**: 85% para regularização
+- **Profundidade**: 10 níveis otimizada
+
+##### **🎯 Ensemble Stacking**
+
+- **Pesos Dinâmicos**: LSTM 50%, RF 18%, GB 18%, XGB 14%
+- **Meta-Learner**: Ridge Regression para stacking
+- **Validação**: 7-fold cross-validation temporal
+- **Adaptação**: Pesos adaptativos baseados em performance recente
+
+#### **📈 Feature Engineering Avançado**
+
+##### **Indicadores Técnicos (80+ features)**
+
+- **Médias Móveis**: SMA, EMA, WMA, Hull, TEMA (10 períodos)
+- **Momentum**: RSI, MACD, Stochastic, Williams %R, ROC
+- **Volatilidade**: Bollinger Bands, ATR, Keltner, Donchian
+- **Volume**: OBV, MFI, VWAP, A/D Line, CMF
+- **Padrões**: Ichimoku, ADX, Parabolic SAR, Fibonacci
+
+##### **Features Estatísticas**
+
+- **Lags**: 1, 2, 3, 5, 8, 13, 21 períodos (Fibonacci)
+- **Rolling Stats**: Média, Desvio, Assimetria, Curtose, Min, Max
+- **Fourier**: 15 componentes para capturar ciclicidade
+- **Wavelets**: Decomposição em 4 níveis
+
+##### **Preprocessamento Robusto**
+
+- **Scaling**: Robust Quantile (5-95 percentil)
+- **Outliers**: Isolation Forest (3% contaminação)
+- **Seleção**: Hybrid (Mutual Info + F-Regression + RFE)
+- **Missing Values**: Iterative Imputer com Bayesian Ridge
+
+#### **🔍 Validação Temporal Avançada**
+
+##### **Cross-Validation Purged**
+
+- **Método**: Time Series CV com embargo de 5 dias
+- **Splits**: 7 folds para validação robusta
+- **Gap**: 2 dias entre treino e teste
+- **Teste**: 30 dias por fold
+
+##### **Walk-Forward Analysis**
+
+- **Janela**: 252 dias (1 ano) de treino
+- **Step**: 21 dias (1 mês) por iteração
+- **Refit**: Retreino mensal automático
+- **Expanding**: Janela crescente de dados
+
+#### **📊 Métricas Financeiras Especializadas**
+
+##### **Métricas de Regressão**
+
+- MSE, RMSE, MAE, MAPE, R²
+- Explained Variance, Poisson/Gamma Deviance
+
+##### **Métricas Financeiras**
+
+- **Sharpe Ratio**: Retorno ajustado ao risco
+- **Sortino Ratio**: Foco no downside risk
+- **Calmar Ratio**: Retorno vs. max drawdown
+- **Directional Accuracy**: Precisão da direção
+- **Hit Ratio**: Taxa de acertos
+- **Profit Factor**: Ganhos vs. perdas
+
+##### **Testes Estatísticos**
+
+- Ljung-Box (autocorrelação)
+- ADF/KPSS (estacionaridade)
+- Jarque-Bera (normalidade)
+- Shapiro-Wilk, Anderson-Darling
+
+#### **🎛️ Otimização Bayesiana**
+
+##### **Optuna Integration**
+
+- **Trials**: 500 tentativas de otimização
+- **Timeout**: 4 horas de busca
+- **Pruning**: Median pruner para eficiência
+- **Search Space**: Log-uniform, categorical, uniform
+
+##### **Hyperparameter Tuning**
+
+- **LSTM**: Learning rate, batch size, layers, dropout
+- **Tree Models**: Estimadores, profundidade, regularização
+- **Ensemble**: Pesos, meta-learner, blending
+
+#### **🖥️ Configuração de Hardware**
+
+##### **GPU Acceleration**
+
+- **Mixed Precision**: FP16 para velocidade
+- **XLA Compilation**: Otimização de grafos
+- **Memory Growth**: Alocação dinâmica
+- **Multi-GPU**: Suporte para múltiplas GPUs
+
+##### **CPU Optimization**
+
+- **Parallelização**: Todos os cores disponíveis
+- **Numba JIT**: Compilação just-in-time
+- **Dask**: Processamento distribuído
+- **Bottleneck**: NumPy acelerado
+
+#### **Como Usar as Configurações Otimizadas**
+
+1. **Configuração Básica (Rápida)**:
+
+   ```bash
+   python main_advanced.py
+   ```
+
+2. **Configuração Profunda (Máxima Precisão)**:
+
+   ```python
+   from config_deep_training import setup_tensorflow_config
+   from hyperparameters_optimized import get_optimized_config
+
+   # Configurar TensorFlow para performance
+   setup_tensorflow_config()
+
+   # Obter configuração otimizada
+   lstm_config = get_optimized_config('lstm')
+   ```
+
+3. **Otimização Bayesiana**:
+
+   ```python
+   from hyperparameters_optimized import BAYESIAN_OPTIMIZATION_CONFIG
+
+   # Ativar otimização automática
+   config['OPTIMIZATION_CONFIG']['use_optuna'] = True
+   ```
+
+#### **Tempo de Treinamento Estimado**
+
+| Configuração | CPU (8 cores) | GPU (RTX 3080) | Precisão Esperada |
+| ------------ | ------------- | -------------- | ----------------- |
+| Básica       | 2-4 horas     | 30-60 min      | R² > 0.85         |
+| Profunda     | 8-12 horas    | 2-4 horas      | R² > 0.90         |
+| Máxima       | 24-48 horas   | 6-12 horas     | R² > 0.95         |
+
+#### **Monitoramento do Treinamento**
+
+1. **TensorBoard**:
+
+   ```bash
+   tensorboard --logdir=logs/tensorboard
+   ```
+
+2. **Logs de Treinamento**:
+
+   ```bash
+   tail -f logs/training_log.csv
+   ```
+
+3. **Checkpoints**:
+   - Modelos salvos automaticamente em `checkpoints/`
+   - Melhor modelo restaurado ao final
 
 ## **Desativação do Ambiente**
 
@@ -349,11 +565,45 @@ Se o modelo LSTM consumir muita memória:
 - Reduza o número de `epochs` (linha padrão: 50)
 - Reduza o tamanho das camadas LSTM (linha padrão: 50)
 
-### **Problemas com o CSV**
+### **Problemas com pandas-ta**
 
-- Verifique se o arquivo CSV usa separador `;`
-- Certifique-se de que existe uma coluna chamada `close`
-- Remova linhas com valores NaN ou vazios
+**pandas-ta atualmente não está disponível via pip:** A biblioteca pandas-ta não
+está mais disponível nos repositórios PyPI padrão.
+
+**Soluções disponíveis:**
+
+1. **Usar bibliotecas alternativas (já incluídas):**
+
+   ```bash
+   # Já incluído no requirements.txt:
+   # ta>=0.10.0 - Biblioteca de análise técnica alternativa
+   # yfinance>=0.2.0 - Para dados financeiros
+   # stockstats>=0.5.0 - Indicadores técnicos
+   ```
+
+2. **Instalar pandas-ta via git (opcional):**
+
+   ```bash
+   pip install git+https://github.com/twopirllc/pandas-ta.git
+   ```
+
+3. **Instalar TA-Lib manualmente (opcional):**
+
+   ```bash
+   # macOS
+   brew install ta-lib
+   pip install TA-Lib
+
+   # Ubuntu/Debian
+   sudo apt-get install libta-lib0-dev
+   pip install TA-Lib
+   ```
+
+**Alternativas funcionais incluídas:**
+
+- **ta:** Biblioteca leve de análise técnica compatível com pandas
+- **stockstats:** Indicadores técnicos prontos para uso
+- **yfinance:** Download de dados financeiros históricos
 
 ### **Problemas com PostgreSQL**
 
@@ -393,6 +643,51 @@ WHERE table_name = 'botbinance';
 - Se PostgreSQL falhar, o sistema usa automaticamente o CSV
 - Verifique os logs para identificar problemas
 - Use `python3 test_database.py` para diagnóstico
+
+### **Problemas com o CSV**
+
+- Verifique se o arquivo CSV usa separador `;`
+- Certifique-se de que existe uma coluna chamada `close`
+- Remova linhas com valores NaN ou vazios
+
+### **Problemas de Versão do Python**
+
+**Se você receber erros sobre versões Python requeridas:**
+
+1. **Verificar versão atual:**
+
+   ```bash
+   python3 --version
+   python3.11 --version  # ou python3.10
+   ```
+
+2. **Instalar Python 3.11+ no macOS:**
+
+   ```bash
+   # Via Homebrew (recomendado)
+   brew install python@3.11
+
+   # Via pyenv
+   curl https://pyenv.run | bash
+   pyenv install 3.11.13
+   pyenv global 3.11.13
+   ```
+
+3. **Recriar ambiente virtual com versão correta:**
+   ```bash
+   rm -rf env
+   python3.11 -m venv env
+   source env/bin/activate
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+**Versões testadas e compatíveis:**
+
+- ✅ Python 3.11.13 (recomendado)
+- ✅ Python 3.12.x
+- ⚠️ Python 3.10.x (mínimo - algumas features limitadas)
+- ❌ Python 3.9.x ou inferior (não compatível)
 
 ## **Versionamento com Git**
 
@@ -444,3 +739,42 @@ git status --ignored
 # Adicionar arquivo específico ignorado (se necessário)
 git add -f arquivo_especifico.csv
 ```
+
+### **Problemas de Permissão com Arquivos de Modelo**
+
+**Se você receber erro "Permission denied" ao salvar modelos:**
+
+```
+PermissionError: [Errno 13] Unable to synchronously create file (unable to open file: name = 'best_lstm_model.h5', errno = 13, error message = 'Permission denied')
+```
+
+**Soluções:**
+
+1. **Executar script de preparação do ambiente (recomendado):**
+
+   ```bash
+   python setup_environment.py
+   ```
+
+2. **Remover arquivos problemáticos manualmente:**
+
+   ```bash
+   rm -f best_lstm_model.h5
+   # Se necessário:
+   sudo rm -f best_lstm_model.h5
+   ```
+
+3. **Criar estrutura de diretórios:**
+
+   ```bash
+   mkdir -p models checkpoints logs plots
+   ```
+
+4. **Verificar permissões:**
+   ```bash
+   ls -la *.h5 *.keras  # Ver arquivos existentes
+   chmod 644 *.h5       # Corrigir permissões se necessário
+   ```
+
+**Nota:** O projeto agora usa o formato `.keras` (mais moderno) em vez de `.h5`
+(legado).
