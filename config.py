@@ -1,268 +1,182 @@
-# config.py - Configurações do projeto
+# config_parallel_max.py - Configuração para máxima paralelização
 
-# Configurações de dados
-SEQ_LENGTH = 120  # Aumentado para capturar padrões temporais mais longos (4 meses de dados)
-TEST_SIZE = 0.12  # Reduzido para máximo de dados de treino disponíveis
-USE_MULTIPLE_FEATURES = True  # Usar múltiplas features ou apenas close
+import os
+import multiprocessing
 
-# Configurações do LSTM
-LSTM_CONFIG = {
-    'layers': [512, 384, 256, 192, 128, 96, 64, 32],  # Arquitetura muito mais profunda para captura de padrões complexos
-    'dropout_rates': [0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],  # Dropout progressivo refinado
-    'dense_layers': [256, 128, 64, 32, 16],  # Camadas densas mais profundas e graduais
-    'epochs': 1000,  # Épocas aumentadas para treino profundo
-    'batch_size': 8,  # Batch menor para gradientes mais precisos
-    'learning_rate': 0.0001,  # Learning rate mais baixo para treino estável e preciso
-    'patience_early_stop': 50,  # Mais paciência para convergência profunda
-    'patience_reduce_lr': 20,  # Redução de LR mais conservadora
-    'min_lr': 0.000001,  # LR mínimo muito baixo para ajuste fino
-    'reduce_lr_factor': 0.2,  # Fator de redução mais agressivo
-    'loss_function': 'huber',  # Huber loss para robustez contra outliers
-    'validation_split': 0.15,  # Validação separada do teste
-    'shuffle': False,  # Manter ordem temporal
-    'bidirectional': True,  # LSTM bidirecional para capturar dependências futuras/passadas
-    'attention': True,  # Mecanismo de atenção para focar em partes importantes da sequência
-    'l1_reg': 0.001,  # Regularização L1 para esparsidade
-    'l2_reg': 0.01,   # Regularização L2 para suavização
-    'clipnorm': 1.0   # Gradient clipping para estabilidade
+# Detecta automaticamente o número de cores disponíveis
+CPU_CORES = multiprocessing.cpu_count()
+print(f"🔧 Cores CPU detectados: {CPU_CORES}")
+
+# Para M1 Max: 10 cores total (8 performance + 2 efficiency)
+# Otimizações específicas para M1 Max
+M1_MAX_PERFORMANCE_CORES = 8
+M1_MAX_EFFICIENCY_CORES = 2
+M1_MAX_TOTAL_CORES = M1_MAX_PERFORMANCE_CORES + M1_MAX_EFFICIENCY_CORES
+
+# Configurações de paralelização máxima
+PARALLEL_CONFIG = {
+    'tensorflow_threads': {
+        'inter_op_parallelism': M1_MAX_PERFORMANCE_CORES,  # 8 cores para operações entre grafos
+        'intra_op_parallelism': M1_MAX_PERFORMANCE_CORES,  # 8 cores para operações dentro do grafo
+        'omp_num_threads': M1_MAX_PERFORMANCE_CORES,       # OpenMP threads
+        'use_multiprocessing': True,
+        'workers': 6,  # Aumentado de 4 para 6 (deixa 2 cores livres para sistema)
+        'max_queue_size': 32,  # Aumentado para maior throughput
+    },
+    'sklearn_models': {
+        'n_jobs': -1,  # Usa todos os cores disponíveis
+        'parallel_backend': 'threading',  # Para modelos que suportam
+        'batch_size': 'auto',  # Deixa o sklearn otimizar
+    },
+    'data_processing': {
+        'chunk_size': 10000,  # Processa dados em chunks paralelos
+        'parallel_feature_engineering': True,
+        'n_jobs_features': M1_MAX_PERFORMANCE_CORES,
+    }
 }
 
-# Configurações do Random Forest
-RF_CONFIG = {
-    'n_estimators_options': [500, 800, 1200, 1500, 2000],  # Muito mais árvores para precisão máxima
-    'max_depth_options': [20, 25, 30, 35, 40, None],  # Profundidades maiores para capturar complexidade
-    'min_samples_split_options': [2, 3, 4],  # Valores mais refinados
-    'min_samples_leaf_options': [1, 2],  # Folhas menores para máxima granularidade
-    'max_features_options': ['sqrt', 'log2', 0.7, 0.8, 0.9, 1.0],  # Mais opções incluindo todas features
-    'bootstrap_options': [True],  # Sempre usar bootstrap
-    'random_search_iterations': 200,  # Dobrado para busca mais exhaustiva
-    'cv_folds': 7,  # Mais folds para validação robusta
-    'n_jobs': -1,  # Usar todos os cores
+# Configurações TensorFlow otimizadas para máxima performance
+TENSORFLOW_CONFIG_MAX_PARALLEL = {
+    'mixed_precision': True,    # Precision mista para velocidade
+    'xla_acceleration': True,   # XLA compilation para otimização
+    'memory_growth': True,      # Crescimento dinâmico de memória GPU
+    'allow_growth': True,
+    'device_placement': True,   # Placement automático otimizado
+    'inter_op_parallelism_threads': M1_MAX_PERFORMANCE_CORES,
+    'intra_op_parallelism_threads': M1_MAX_PERFORMANCE_CORES,
+    'use_multiprocessing': True,
+    'workers': 6,
+    'max_queue_size': 32,
+    'threads_per_gpu': 2,  # Para múltiplas streams GPU
+}
+
+# LSTM otimizado para paralelização máxima
+LSTM_CONFIG_PARALLEL_MAX = {
+    'layers': [256, 128, 64],  # Arquitetura otimizada para GPU paralela
+    'dropout_rates': [0.2, 0.3, 0.4],
+    'dense_layers': [128, 64],
+    'epochs': 300,
+    'batch_size': 64,  # Batch maior para melhor GPU utilization
+    'learning_rate': 0.001,
+    'patience_early_stop': 25,
+    'patience_reduce_lr': 10,
+    'min_lr': 0.00001,
+    'reduce_lr_factor': 0.5,
+    'loss_function': 'mse',
+    'validation_split': 0.2,
+    'shuffle': False,
+    'bidirectional': False,  # Mais rápido sem bidirecional
+    'attention': False,      # Mais rápido sem attention
+    'l1_reg': 0.0001,
+    'l2_reg': 0.001,
+    'clipnorm': 1.0,
+    # Configurações de paralelização máxima
+    'use_mixed_precision': True,
+    'use_xla': True,
+    'force_gpu': True,
+    'prefetch_buffer_size': 'AUTOTUNE',
+    'num_parallel_calls': 'AUTOTUNE',
+}
+
+# Random Forest com paralelização máxima
+RF_CONFIG_PARALLEL_MAX = {
+    'n_estimators_options': [200, 400, 600],  # Aumentado mas mantendo eficiência
+    'max_depth_options': [15, 20, 25],
+    'min_samples_split_options': [2, 4],
+    'min_samples_leaf_options': [1, 2],
+    'max_features_options': ['sqrt', 'log2', 0.8],
+    'bootstrap_options': [True],
+    'random_search_iterations': 50,  # Aumentado de 30 para 50
+    'cv_folds': 5,  # Aumentado de 3 para 5
+    'n_jobs': -1,   # Usa todos os cores
     'random_state': 42,
-    'oob_score': True,  # Out-of-bag scoring
-    'class_weight': 'balanced',  # Balanceamento automático
-    'ccp_alpha': 0.0,  # Pruning mínimo
-    'max_samples': 0.9  # 90% das amostras para cada árvore
+    'oob_score': True,
+    'max_samples': 0.9,
+    # Configurações extras para performance
+    'warm_start': False,
+    'class_weight': None,  # Mais rápido sem balanceamento
+    'criterion': 'squared_error',  # Padrão otimizado
 }
 
-# Configurações do Gradient Boosting
-GB_CONFIG = {
-    'n_estimators_options': [500, 800, 1200, 1500],  # Muito mais estimadores para precisão
-    'learning_rate_options': [0.005, 0.01, 0.02, 0.05, 0.08],  # Learning rates mais refinados
-    'max_depth_options': [6, 8, 10, 12, 15],  # Profundidades maiores
-    'min_samples_split_options': [2, 3, 4, 5],  # Splits mais refinados
-    'min_samples_leaf_options': [1, 2, 3],  # Folhas pequenas para granularidade
-    'subsample_options': [0.7, 0.8, 0.9, 1.0],  # Mais opções de subsampling
-    'max_features_options': ['sqrt', 'log2', 0.7, 0.8, 0.9],  # Seleção refinada de features
-    'random_search_iterations': 150,  # Busca muito mais extensiva
-    'cv_folds': 7,  # Validação mais robusta
-    'validation_fraction': 0.1,  # Validação interna
-    'n_iter_no_change': 20,  # Early stopping mais paciente
+# Gradient Boosting paralelizado
+GB_CONFIG_PARALLEL_MAX = {
+    'n_estimators_options': [200, 400, 600],
+    'learning_rate_options': [0.05, 0.1, 0.15],
+    'max_depth_options': [6, 8, 10],
+    'min_samples_split_options': [2, 4],
+    'min_samples_leaf_options': [1, 2],
+    'subsample_options': [0.8, 0.9],
+    'max_features_options': ['sqrt', 'log2'],
+    'random_search_iterations': 30,  # Mantido para balance
+    'cv_folds': 5,
+    'validation_fraction': 0.1,
+    'n_iter_no_change': 15,
     'random_state': 42,
-    'tol': 1e-6,  # Tolerância mais baixa para convergência
-    'warm_start': True  # Aproveitar treinos anteriores
+    'tol': 1e-4,
+    'warm_start': False,
 }
 
-# Configurações do XGBoost (adicional)
-XGB_CONFIG = {
-    'n_estimators_options': [500, 800, 1200, 1500],  # Muito mais estimadores
-    'learning_rate_options': [0.005, 0.01, 0.02, 0.05],  # Learning rates mais baixos
-    'max_depth_options': [6, 8, 10, 12, 15],  # Profundidades maiores
-    'subsample_options': [0.7, 0.8, 0.9],  # Subsampling refinado
-    'colsample_bytree_options': [0.7, 0.8, 0.9, 1.0],  # Seleção de features por árvore
-    'colsample_bylevel_options': [0.8, 0.9, 1.0],  # Seleção por nível
-    'reg_alpha_options': [0, 0.01, 0.1, 0.5, 1.0],  # L1 regularization expandida
-    'reg_lambda_options': [1, 1.5, 2, 3, 5],  # L2 regularization expandida
-    'gamma_options': [0, 0.1, 0.5, 1.0],  # Pruning mínimo
-    'min_child_weight_options': [1, 3, 5, 7],  # Peso mínimo das folhas
-    'random_search_iterations': 100,  # Busca mais extensiva
-    'cv_folds': 7,  # Validação robusta
-    'early_stopping_rounds': 30,  # Early stopping mais paciente
-    'random_state': 42,
-    'tree_method': 'hist',  # Método otimizado para velocidade
-    'objective': 'reg:squarederror',  # Objetivo de regressão
-    'eval_metric': 'rmse'  # Métrica de avaliação
-}
-
-# Configurações do Ensemble
-ENSEMBLE_WEIGHTS = {
-    'lstm_weight': 0.45,  # Peso aumentado do LSTM (modelo principal)
-    'rf_weight': 0.2,     # Peso do Random Forest
-    'gb_weight': 0.2,     # Peso do Gradient Boosting
-    'xgb_weight': 0.15,   # Peso aumentado do XGBoost
-    'use_weighted_average': True,  # Usar média ponderada
-    'use_stacking': True,  # Stacking ensemble ativado para máxima precisão
-    'meta_model': 'ridge',  # Modelo meta para stacking: 'ridge', 'lasso', 'elastic'
-    'stacking_cv': 7,     # Cross-validation para stacking
-    'blend_method': 'average',  # 'average', 'weighted', 'rank'
-    'dynamic_weights': True,  # Pesos dinâmicos baseados na performance recente
-    'ensemble_diversity': True  # Promover diversidade entre modelos
-}
-
-# Features técnicas para calcular
-TECHNICAL_FEATURES = {
+# Features técnicas otimizadas para processamento paralelo
+TECHNICAL_FEATURES_PARALLEL = {
     'price_change': True,
     'volatility': True,
     'price_position': True,
     'moving_averages': {
         'enabled': True,
-        'windows': [3, 5, 7, 10, 14, 20, 30, 50, 100, 200],  # Janelas muito mais abrangentes
-        'types': ['sma', 'ema', 'wma', 'hull']  # Múltiplos tipos de médias móveis
+        'windows': [5, 10, 20, 50],
+        'types': ['sma', 'ema'],
+        'parallel_computation': True,  # Calcula MAs em paralelo
     },
     'rsi': {
         'enabled': True,
-        'windows': [9, 14, 21, 25, 30]  # Múltiplos períodos RSI refinados
+        'windows': [14, 21],
+        'parallel_computation': True,
     },
     'bollinger_bands': {
         'enabled': True,
-        'windows': [10, 20, 30, 50],  # Múltiplas janelas
-        'std_devs': [1.5, 2, 2.5, 3]  # Diferentes desvios padrão
+        'windows': [20],
+        'std_devs': [2],
+        'parallel_computation': True,
     },
     'macd': {
         'enabled': True,
         'fast': 12,
         'slow': 26,
-        'signal': 9
+        'signal': 9,
+        'parallel_computation': True,
     },
     'stochastic': {
         'enabled': True,
         'k_window': 14,
-        'd_window': 3
-    },
-    'williams_r': {
-        'enabled': True,
-        'window': 14
+        'd_window': 3,
     },
     'atr': {
         'enabled': True,
-        'window': 14
+        'window': 14,
     },
-    'cci': {
-        'enabled': True,
-        'window': 20
-    },
-    'momentum': {
-        'enabled': True,
-        'windows': [3, 5, 10, 14, 20, 30]  # Janelas expandidas
-    },
-    'rate_of_change': {
-        'enabled': True,
-        'windows': [3, 5, 10, 14, 20, 30]  # Janelas expandidas
-    },
-    'price_channels': {
-        'enabled': True,
-        'window': 20
-    },
-    'fibonacci_retracements': {
-        'enabled': True,
-        'window': 50
-    },
-    'ichimoku': {
-        'enabled': True,
-        'tenkan': 9,
-        'kijun': 26,
-        'senkou_b': 52
-    },
-    'adx': {
-        'enabled': True,
-        'window': 14
-    },
-    'parabolic_sar': {
-        'enabled': True,
-        'step': 0.02,
-        'max_step': 0.2
-    },
-    'obv': {
-        'enabled': True
-    },
-    'mfi': {
-        'enabled': True,
-        'window': 14
-    }
+    # Configurações de paralelização
+    'parallel_feature_computation': True,
+    'chunk_processing': True,
+    'n_jobs': M1_MAX_PERFORMANCE_CORES,
 }
 
-# Configurações de visualização
-PLOT_CONFIG = {
-    'figure_size': (15, 8),
-    'dpi': 100,
-    'style': 'seaborn-v0_8',
-    'colors': {
-        'real': 'blue',
-        'lstm': 'red',
-        'rf': 'green',
-        'ensemble': 'purple'
-    }
+# Configurações de dados otimizadas
+SEQ_LENGTH_PARALLEL = 60  # Otimizado para balance velocidade/precisão
+TEST_SIZE_PARALLEL = 0.2
+USE_MULTIPLE_FEATURES_PARALLEL = True
+
+# Configurações de ensemble paralelo
+ENSEMBLE_CONFIG_PARALLEL = {
+    'parallel_training': True,  # Treina modelos em paralelo quando possível
+    'parallel_prediction': True,  # Previsões em paralelo
+    'n_jobs': M1_MAX_PERFORMANCE_CORES,
+    'use_joblib_parallel': True,
+    'backend': 'threading',  # Para I/O bound operations
+    'batch_size': 'auto',
 }
 
-# Configurações de Pré-processamento
-PREPROCESSING_CONFIG = {
-    'scaling_method': 'robust',  # 'standard', 'minmax', 'robust', 'quantile'
-    'handle_outliers': True,
-    'outlier_method': 'isolation_forest',  # Método mais sofisticado para outliers
-    'outlier_threshold': 2.5,  # Threshold mais restritivo
-    'outlier_contamination': 0.05,  # 5% de contaminação esperada
-    'fill_missing': 'interpolate',  # 'forward', 'backward', 'interpolate', 'mean'
-    'feature_selection': {
-        'enabled': True,
-        'method': 'mutual_info',  # 'correlation', 'mutual_info', 'rfe', 'lasso'
-        'n_features': 80,  # Número aumentado de features
-        'threshold': 0.005,  # Threshold mais baixo para incluir mais features
-        'variance_threshold': 0.01  # Remover features com baixa variância
-    },
-    'lag_features': {
-        'enabled': True,
-        'lags': [1, 2, 3, 5, 7, 10, 14, 21],  # Múltiplos lags expandidos
-        'rolling_stats': {
-            'windows': [3, 5, 7, 10, 14, 20, 30],  # Janelas expandidas
-            'stats': ['mean', 'std', 'min', 'max', 'skew', 'kurt', 'median']  # Estatísticas expandidas
-        }
-    },
-    'fourier_features': {
-        'enabled': True,
-        'n_components': 10  # Componentes de Fourier para capturar ciclicidade
-    },
-    'polynomial_features': {
-        'enabled': True,
-        'degree': 2,  # Features polinomiais de grau 2
-        'interaction_only': True  # Apenas interações, não potências
-    }
-}
-
-# Configurações de Otimização
-OPTIMIZATION_CONFIG = {
-    'use_optuna': True,  # Ativar Optuna para otimização bayesiana
-    'optuna_trials': 200,  # Mais trials para otimização profunda
-    'optuna_timeout': 7200,  # 2 horas de timeout
-    'cross_validation': {
-        'method': 'time_series',  # 'time_series', 'stratified', 'group'
-        'n_splits': 7,  # Mais splits para validação robusta
-        'test_size': 0.15,  # Tamanho de teste reduzido
-        'gap': 5  # Gap entre treino e teste
-    },
-    'hyperparameter_search': {
-        'method': 'bayesian',  # Otimização bayesiana para máxima eficiência
-        'scoring': 'neg_mean_squared_error',
-        'refit': 'neg_mean_squared_error',
-        'n_iter': 200,  # Mais iterações
-        'random_state': 42
-    },
-    'ensemble_optimization': {
-        'enabled': True,
-        'method': 'genetic_algorithm',  # Algoritmo genético para pesos
-        'population_size': 50,
-        'generations': 100
-    }
-}
-
-# Configurações de Monitoramento
-MONITORING_CONFIG = {
-    'save_models': True,
-    'model_checkpoint_dir': 'checkpoints/',
-    'tensorboard_logs': 'logs/tensorboard/',
-    'save_predictions': True,
-    'save_metrics': True,
-    'plot_training_curves': True,
-    'save_feature_importance': True,
-    'generate_reports': True,
-    'log_level': 'INFO'  # 'DEBUG', 'INFO', 'WARNING', 'ERROR'
-}
+print("✅ Configuração de paralelização máxima carregada!")
+print(f"🚀 Configurado para {CPU_CORES} cores ({M1_MAX_PERFORMANCE_CORES} performance + {M1_MAX_EFFICIENCY_CORES} efficiency)")
+print(f"🔧 TensorFlow workers: {TENSORFLOW_CONFIG_MAX_PARALLEL['workers']}")
+print(f"📊 Batch size LSTM: {LSTM_CONFIG_PARALLEL_MAX['batch_size']}")
+print(f"🌲 Random Forest paralelo: {RF_CONFIG_PARALLEL_MAX['n_jobs']} jobs")
