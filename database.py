@@ -53,9 +53,20 @@ class DatabaseManager:
         Estabelece conexão com o banco
         """
         try:
+            # Tenta primeiro com SQLAlchemy
             connection_string = self.create_connection_string()
             self.engine = create_engine(connection_string)
             self.connection = self.engine.connect()
+            
+            # Também cria conexão direta com psycopg2
+            self.psycopg2_conn = psycopg2.connect(
+                host=self.db_config['host'],
+                port=self.db_config['port'],
+                database=self.db_config['database'],
+                user=self.db_config['user'],
+                password=self.db_config['password']
+            )
+            
             print(f"✅ Conectado ao PostgreSQL: {self.db_config['host']}:{self.db_config['port']}/{self.db_config['database']}")
             return True
         except Exception as e:
@@ -66,6 +77,8 @@ class DatabaseManager:
         """
         Fecha conexão com o banco
         """
+        if hasattr(self, 'psycopg2_conn') and self.psycopg2_conn:
+            self.psycopg2_conn.close()
         if self.connection:
             self.connection.close()
         if self.engine:
@@ -82,7 +95,7 @@ class DatabaseManager:
             
             # Testa com uma query simples
             test_query = "SELECT 1 as test"
-            result = pd.read_sql(test_query, self.connection)
+            result = pd.read_sql(test_query, self.psycopg2_conn)
             print(f"✅ Teste de conexão bem-sucedido: {result.iloc[0, 0]}")
             return True
         except Exception as e:
@@ -109,11 +122,11 @@ class DatabaseManager:
             ORDER BY ordinal_position;
             """
             
-            columns_info = pd.read_sql(info_query, self.connection)
+            columns_info = pd.read_sql(info_query, self.psycopg2_conn)
             
             # Query para contar registros
             count_query = f"SELECT COUNT(*) as total_rows FROM {table_name}"
-            row_count = pd.read_sql(count_query, self.connection)
+            row_count = pd.read_sql(count_query, self.psycopg2_conn)
             
             print(f"\n=== Informações da Tabela: {table_name} ===")
             print(f"Total de registros: {row_count.iloc[0, 0]:,}")
@@ -146,7 +159,7 @@ class DatabaseManager:
             print(f"Executando query: {query}")
             
             # Carrega os dados
-            df = pd.read_sql(query, self.connection)
+            df = pd.read_sql(query, self.psycopg2_conn)
             
             print(f"✅ Dados carregados: {len(df)} registros, {len(df.columns)} colunas")
             print(f"Colunas disponíveis: {list(df.columns)}")
@@ -165,7 +178,7 @@ class DatabaseManager:
             if not self.connection:
                 self.connect()
             
-            df = pd.read_sql(query, self.connection)
+            df = pd.read_sql(query, self.psycopg2_conn)
             print(f"✅ Query executada com sucesso: {len(df)} registros retornados")
             return df
             
